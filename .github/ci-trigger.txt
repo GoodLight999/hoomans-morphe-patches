@@ -1,1 +1,1 @@
-Trigger APKMirror Google Phone v161 application test.
+Trigger direct-mirror Google Phone v161 application test.

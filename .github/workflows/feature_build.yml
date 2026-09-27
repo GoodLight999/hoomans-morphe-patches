@@ -34,7 +34,7 @@ jobs:
 
       - name: Download Google Phone 161
         run: |
-          curl -fL --retry 3 -A "Mozilla/5.0" -e "https://www.apkmirror.com/apk/google-inc/google-phone/phone-by-google-161-0-726587057-downloadable-release/phone-by-google-161-0-726587057-downloadable-android-apk-download/" "https://www.apkmirror.com/apk/google-inc/google-phone/phone-by-google-161-0-726587057-downloadable-release/phone-by-google-161-0-726587057-downloadable-android-apk-download/download/?key=c456c5d478fc87c0ef005e442c14eb7aa1158721" -o google-phone-161.apk
+          curl -fL --retry 3 -A "Mozilla/5.0" "https://dl.37790.cn/apk/com.google.android.dialer_3a7efab9.apk" -o google-phone-161.apk
           file google-phone-161.apk
           unzip -t google-phone-161.apk >/dev/null
 

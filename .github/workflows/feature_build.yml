@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - feat/silent-call-recording
+  pull_request:
+    branches:
+      - feat/silent-call-recording
 
 jobs:
   build:

@@ -236,12 +236,35 @@ jobs:
 
           DISCLOSURE_ENUM="${DISCLOSURE_ENUMS[0]}"
           cp "$DISCLOSURE_ENUM" static-analysis/patched-disclosure-enum.java
-          if ! grep -q 'return BEEP_SOUND;' "$DISCLOSURE_ENUM"; then
-            echo "Disclosure decoder is not forced to BEEP_SOUND" >&2
-            cat "$DISCLOSURE_ENUM" >&2
-            exit 1
-          fi
-          grep -n -C 8 'return BEEP_SOUND;' "$DISCLOSURE_ENUM" > static-analysis/patched-disclosure-type-verification.txt
+          python3 - "$DISCLOSURE_ENUM" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          path = Path(sys.argv[1])
+          source = path.read_text(encoding="utf-8")
+          match = re.search(
+              r"public static\\s+\\w+\\s+\\w+\\(int\\s+(\\w+)\\)\\s*\\{",
+              source,
+          )
+          if not match:
+              raise SystemExit("Disclosure int->enum decoder not found in patched source")
+
+          parameter = match.group(1)
+          tail = source[match.end():]
+          first_lines = "\\n".join(tail.splitlines()[:14])
+          assignment = re.search(rf"\\b{re.escape(parameter)}\\s*=\\s*1\\s*;", first_lines)
+          direct_return = re.match(r"\\s*return\\s+BEEP_SOUND\\s*;", tail)
+          if not assignment and not direct_return:
+              raise SystemExit(
+                  "Disclosure decoder input is not visibly forced to beep value 1:\\n" + first_lines
+              )
+
+          Path("static-analysis/patched-disclosure-type-verification.txt").write_text(
+              f"decoder parameter={parameter}\\n" + first_lines + "\\n",
+              encoding="utf-8",
+          )
+          PY
 
       - name: Upload static analysis
         if: always()

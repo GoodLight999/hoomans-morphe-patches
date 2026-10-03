@@ -131,35 +131,46 @@ jobs:
           if nonempty:
               raise SystemExit(f"Announcement resources are not empty: {nonempty}")
 
-          raw_expected = {
-              "starting_voice_beep_sound.ogg": "5dbff2f2265f114a2e160e624c2b7e59af78ae268504c5318f66ccba9750f37c",
-              "ending_voice_beep_sound.ogg": "5dbff2f2265f114a2e160e624c2b7e59af78ae268504c5318f66ccba9750f37c",
-              "starting_voice_ar_XA.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
-              "ending_voice_ar_XA.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
-              "starting_voice_my_MM.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
-              "ending_voice_my_MM.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
+          raw_names = {
+              "starting_voice_beep_sound.ogg",
+              "ending_voice_beep_sound.ogg",
+              "starting_voice_ar_XA.m4a",
+              "ending_voice_ar_XA.m4a",
+              "starting_voice_my_MM.m4a",
+              "ending_voice_my_MM.m4a",
           }
 
-          import hashlib
+          import subprocess
           raw_dir = Path("jadx-patched/resources/res/raw")
           raw_results = {}
-          for name, expected in raw_expected.items():
+          for name in sorted(raw_names):
               path = raw_dir / name
               if not path.is_file():
                   raise SystemExit(f"Missing patched raw announcement resource: {name}")
-              digest = hashlib.sha256(path.read_bytes()).hexdigest()
-              if digest != expected:
-                  raise SystemExit(f"Unexpected content for {name}: {digest}")
-              raw_results[name] = digest
+
+              decoded = subprocess.run(
+                  [
+                      "ffmpeg", "-v", "error", "-i", str(path),
+                      "-f", "s16le", "-ac", "1", "-ar", "8000", "pipe:1",
+                  ],
+                  check=True,
+                  stdout=subprocess.PIPE,
+              ).stdout
+              if not decoded:
+                  raise SystemExit(f"Patched raw announcement resource decodes to no audio: {name}")
+              if any(decoded):
+                  raise SystemExit(f"Patched raw announcement resource is not silent: {name}")
+              raw_results[name] = len(decoded)
 
           with open("static-analysis/patched-resource-verification.txt", "w", encoding="utf-8") as out:
               for name in sorted(found):
                   out.write(f"{name}: {len(found[name])} definitions; all empty\n")
               for name in sorted(raw_results):
-                  out.write(f"{name}: replaced with verified silent audio ({raw_results[name]})\n")
+                  out.write(f"{name}: decoded PCM is completely silent ({raw_results[name]} bytes checked)\n")
           PY
 
       - name: Upload static analysis
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: silent-recording-static-analysis

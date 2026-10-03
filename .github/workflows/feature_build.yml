@@ -83,7 +83,15 @@ jobs:
             grep -R -n -C 6 -E 'synthesizeToFile|TextToSpeech|ToneGenerator|SoundPool' jadx-original/sources/com/google/android/dialer jadx-original/sources 2>/dev/null | head -n 6000 || true
           } > static-analysis/original-recording-paths.txt
 
-          for class in grn grj grp grr grs grw grt gro grl fii gte gkn fiy fiz; do
+          {
+            echo "=== Disclosure implementations / construction ==="
+            grep -R -n -C 14 -E 'new (grr|gro|gru)\(' jadx-original/sources || true
+            echo
+            echo "=== Call-recording disclosure audio injection ==="
+            grep -R -n -C 14 -E 'TtsCallRecordingDisclosure|BeepSoundCallRecordingDisclosure|BuiltIn.*CallRecordingDisclosure|CALL_RECORDING_DISCLOSURE_' jadx-original/sources || true
+          } > static-analysis/disclosure-control-flow.txt
+
+          for class in grn grj grp grr grs grw grt gro gru grl gib fii gte gkn fiy fiz fis fjo fjq fir fij fif; do
             src="jadx-original/sources/defpackage/$class.java"
             if [ -f "$src" ]; then
               cp "$src" "static-analysis/$class.java"

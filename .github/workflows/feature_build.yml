@@ -78,6 +78,13 @@ jobs:
             grep -R -n -C 6 -E 'synthesizeToFile|TextToSpeech|ToneGenerator|SoundPool' jadx-original/sources/com/google/android/dialer jadx-original/sources 2>/dev/null | head -n 6000 || true
           } > static-analysis/original-recording-paths.txt
 
+          for class in grn grj grp grr grs grw fiy fiz; do
+            src="jadx-original/sources/defpackage/$class.java"
+            if [ -f "$src" ]; then
+              cp "$src" "static-analysis/$class.java"
+            fi
+          done
+
       - name: Apply silent recording patch
         run: |
           PATCH_BUNDLE="$(find patches/build/libs -maxdepth 1 -type f -name '*.mpp' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
@@ -124,9 +131,32 @@ jobs:
           if nonempty:
               raise SystemExit(f"Announcement resources are not empty: {nonempty}")
 
+          raw_expected = {
+              "starting_voice_beep_sound.ogg": "5dbff2f2265f114a2e160e624c2b7e59af78ae268504c5318f66ccba9750f37c",
+              "ending_voice_beep_sound.ogg": "5dbff2f2265f114a2e160e624c2b7e59af78ae268504c5318f66ccba9750f37c",
+              "starting_voice_ar_XA.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
+              "ending_voice_ar_XA.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
+              "starting_voice_my_MM.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
+              "ending_voice_my_MM.m4a": "6a7be5273a997e3bc205e1b2f0c9ae3bd7b29d0023c25f85afd58f7802baff9f",
+          }
+
+          import hashlib
+          raw_dir = Path("jadx-patched/resources/res/raw")
+          raw_results = {}
+          for name, expected in raw_expected.items():
+              path = raw_dir / name
+              if not path.is_file():
+                  raise SystemExit(f"Missing patched raw announcement resource: {name}")
+              digest = hashlib.sha256(path.read_bytes()).hexdigest()
+              if digest != expected:
+                  raise SystemExit(f"Unexpected content for {name}: {digest}")
+              raw_results[name] = digest
+
           with open("static-analysis/patched-resource-verification.txt", "w", encoding="utf-8") as out:
               for name in sorted(found):
                   out.write(f"{name}: {len(found[name])} definitions; all empty\n")
+              for name in sorted(raw_results):
+                  out.write(f"{name}: replaced with verified silent audio ({raw_results[name]})\n")
           PY
 
       - name: Upload static analysis

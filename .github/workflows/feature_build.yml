@@ -174,6 +174,34 @@ jobs:
                   out.write(f"{name}: decoded PCM is completely silent ({raw_results[name]} bytes checked)\n")
           PY
 
+      - name: Verify patched disclosure cache invalidation
+        run: |
+          jadx/bin/jadx --no-res -d jadx-patched-src google-phone-161-patched.apk > static-analysis/jadx-patched-src.log 2>&1 || true
+
+          mapfile -t CACHE_HOSTS < <(
+            grep -Rl --include='*.java' '"callrecordingprompt"' jadx-patched-src/sources 2>/dev/null | while read -r file; do
+              if grep -q '"audioinjector"' "$file"; then
+                echo "$file"
+              fi
+            done
+          )
+          if [ "${#CACHE_HOSTS[@]}" -ne 1 ]; then
+            echo "Expected one patched disclosure cache host, found ${#CACHE_HOSTS[@]}" >&2
+            printf '%s\n' "${CACHE_HOSTS[@]}" >&2
+            exit 1
+          fi
+
+          CACHE_HOST="${CACHE_HOSTS[0]}"
+          cp "$CACHE_HOST" static-analysis/patched-cache-host.java
+          DELETE_COUNT="$(grep -c '\.delete()' "$CACHE_HOST" || true)"
+          if [ "$DELETE_COUNT" -ne 2 ]; then
+            echo "Expected two cached disclosure file deletions, found $DELETE_COUNT" >&2
+            grep -n -C 8 -E 'audioinjector|callrecordingprompt|\.delete\(\)' "$CACHE_HOST" >&2 || true
+            exit 1
+          fi
+
+          grep -n -C 12 -E 'audioinjector|callrecordingprompt|\.delete\(\)' "$CACHE_HOST" > static-analysis/patched-cache-verification.txt
+
       - name: Upload static analysis
         if: always()
         uses: actions/upload-artifact@v4

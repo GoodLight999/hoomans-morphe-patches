@@ -89,7 +89,18 @@ jobs:
             echo
             echo "=== Call-recording disclosure audio injection ==="
             grep -R -n -C 14 -E 'TtsCallRecordingDisclosure|BeepSoundCallRecordingDisclosure|BuiltIn.*CallRecordingDisclosure|CALL_RECORDING_DISCLOSURE_' jadx-original/sources || true
+            echo
+            echo "=== Disclosure type selection ==="
+            grep -R -n -C 24 -E 'grm\.(BEEP_SOUND|TTS|BUILT_IN)|grm\.b\(' jadx-original/sources || true
           } > static-analysis/disclosure-control-flow.txt
+
+          mapfile -t DISCLOSURE_SELECTOR_FILES < <(
+            grep -Rl --include='*.java' -E 'grm\.(BEEP_SOUND|TTS|BUILT_IN)' jadx-original/sources 2>/dev/null || true
+          )
+          mkdir -p static-analysis/disclosure-selectors
+          for src in "${DISCLOSURE_SELECTOR_FILES[@]}"; do
+            cp "$src" "static-analysis/disclosure-selectors/$(basename "$src")"
+          done
 
           for class in grn grj grp grr grs grw grt gro gru grl gib fii gte gkn fiy fiz fis fjo fjq fir fij fif; do
             src="jadx-original/sources/defpackage/$class.java"

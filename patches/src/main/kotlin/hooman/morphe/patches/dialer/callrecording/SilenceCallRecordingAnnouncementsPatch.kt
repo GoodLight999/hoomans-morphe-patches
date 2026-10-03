@@ -155,10 +155,9 @@ val silentCallRecordingPatch = bytecodePatch(
         // cached audio file, audioinjector directory, cached call-recording prompt, prompt directory.
         // Delete and invalidate the two cached-file checks so both providers regenerate from the
         // patched silent resources on first use after every app process update.
-        val cacheHost = classDefByStrings(
-            "callrecordingprompt",
-            "audioinjector",
-        ).singleOrNull()
+        val cacheHost = classDefByStrings("callrecordingprompt")
+            .intersect(classDefByStrings("audioinjector").toSet())
+            .singleOrNull()
             ?: throw PatchException(
                 "Google Phone: disclosure cache host not found or ambiguous. " +
                     "The call-recording audio cache implementation changed.",

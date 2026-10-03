@@ -15,6 +15,15 @@ private val recordingAnnouncementResourceNames = setOf(
     "call_recording_speaker_ending_voice",
 )
 
+private val recordingAnnouncementRawResources = mapOf(
+    "starting_voice_beep_sound.ogg" to silentOggBytes,
+    "ending_voice_beep_sound.ogg" to silentOggBytes,
+    "starting_voice_ar_XA.m4a" to silentM4aBytes,
+    "ending_voice_ar_XA.m4a" to silentM4aBytes,
+    "starting_voice_my_MM.m4a" to silentM4aBytes,
+    "ending_voice_my_MM.m4a" to silentM4aBytes,
+)
+
 private val googlePhone161Compatibility = Compatibility(
     name = "Google Phone",
     packageName = "com.google.android.dialer",
@@ -26,7 +35,7 @@ private val googlePhone161Compatibility = Compatibility(
 )
 
 private val silenceCallRecordingAnnouncementsResourcePatch = resourcePatch(
-    description = "Silences the spoken call-recording start and stop announcement resources.",
+    description = "Silences TTS, built-in voice, and beep call-recording start and stop announcements.",
 ) {
     compatibleWith(googlePhone161Compatibility)
 
@@ -81,13 +90,29 @@ private val silenceCallRecordingAnnouncementsResourcePatch = resourcePatch(
                     ". The call-recording prompt implementation changed.",
             )
         }
+
+        val rawDirectory = get("res/raw")
+        val missingRawResources = recordingAnnouncementRawResources.keys.filter { name ->
+            !rawDirectory.resolve(name).isFile
+        }
+        if (missingRawResources.isNotEmpty()) {
+            throw PatchException(
+                "Google Phone: recording announcement raw resources were not found: " +
+                    missingRawResources.joinToString() +
+                    ". The call-recording disclosure implementation changed.",
+            )
+        }
+
+        recordingAnnouncementRawResources.forEach { (name, bytes) ->
+            rawDirectory.resolve(name).writeBytes(bytes)
+        }
     }
 }
 
 @Suppress("unused")
 val silentCallRecordingPatch = bytecodePatch(
     name = "Silent call recording",
-    description = "Enables Google Phone's built-in call recorder and silences its spoken start and stop announcements.",
+    description = "Enables Google Phone's built-in call recorder and silences TTS, built-in voice, and beep start/stop announcements.",
 ) {
     compatibleWith(googlePhone161Compatibility)
     dependsOn(silenceCallRecordingAnnouncementsResourcePatch)

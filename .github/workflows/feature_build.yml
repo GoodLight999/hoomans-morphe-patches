@@ -43,6 +43,11 @@ jobs:
       - name: Download Morphe Desktop
         run: curl -fL --retry 3 https://github.com/MorpheApp/morphe-desktop/releases/download/v1.17.0/morphe-desktop-1.17.0-all.jar -o morphe-desktop.jar
 
+      - name: Install audio verification tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
       - name: Download JADX
         run: |
           curl -fL --retry 3 https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip -o jadx.zip

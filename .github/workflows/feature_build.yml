@@ -221,6 +221,28 @@ jobs:
 
           grep -n -C 12 -E 'audioinjector|callrecordingprompt|\.delete\(\)' "$CACHE_HOST" > static-analysis/patched-cache-verification.txt
 
+          mapfile -t DISCLOSURE_ENUMS < <(
+            grep -Rl --include='*.java' 'CALL_RECORDING_DISCLOSURE_TYPE_UNSPECIFIED' jadx-patched-src/sources 2>/dev/null | while read -r file; do
+              if grep -q 'public enum' "$file" && grep -q 'BEEP_SOUND' "$file" && grep -q 'BUILT_IN' "$file" && grep -q 'TTS' "$file"; then
+                echo "$file"
+              fi
+            done
+          )
+          if [ "${#DISCLOSURE_ENUMS[@]}" -ne 1 ]; then
+            echo "Expected one patched disclosure enum, found ${#DISCLOSURE_ENUMS[@]}" >&2
+            printf '%s\n' "${DISCLOSURE_ENUMS[@]}" >&2
+            exit 1
+          fi
+
+          DISCLOSURE_ENUM="${DISCLOSURE_ENUMS[0]}"
+          cp "$DISCLOSURE_ENUM" static-analysis/patched-disclosure-enum.java
+          if ! grep -q 'return BEEP_SOUND;' "$DISCLOSURE_ENUM"; then
+            echo "Disclosure decoder is not forced to BEEP_SOUND" >&2
+            cat "$DISCLOSURE_ENUM" >&2
+            exit 1
+          fi
+          grep -n -C 8 'return BEEP_SOUND;' "$DISCLOSURE_ENUM" > static-analysis/patched-disclosure-type-verification.txt
+
       - name: Upload static analysis
         if: always()
         uses: actions/upload-artifact@v4

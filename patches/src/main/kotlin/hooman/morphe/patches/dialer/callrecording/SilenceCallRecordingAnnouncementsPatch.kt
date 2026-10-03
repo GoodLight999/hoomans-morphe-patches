@@ -163,11 +163,6 @@ val silentCallRecordingPatch = bytecodePatch(
             )
         val mutableDisclosureType = mutableClassDefBy(disclosureType)
         val disclosureTypeName = disclosureType.type
-        val beepField = disclosureType.fields.singleOrNull { field ->
-            field.name == "BEEP_SOUND" && field.type == disclosureTypeName
-        } ?: throw PatchException(
-            "Google Phone: BEEP_SOUND disclosure enum field not found uniquely.",
-        )
         val decodeDisclosureType = mutableDisclosureType.methods.singleOrNull { method ->
             AccessFlags.STATIC.isSet(method.accessFlags) &&
                 method.returnType == disclosureTypeName &&
@@ -175,13 +170,11 @@ val silentCallRecordingPatch = bytecodePatch(
         } ?: throw PatchException(
             "Google Phone: disclosure type decoder (int -> enum) not found uniquely.",
         )
-        decodeDisclosureType.addInstructions(
-            0,
-            """
-                sget-object v0, $disclosureTypeName->${beepField.name}:$disclosureTypeName
-                return-object v0
-            """,
-        )
+
+        // The stock decoder maps integer value 1 to BEEP_SOUND. Force its input to 1 and then let
+        // Google's own decoder return the enum constant, avoiding any dependency on obfuscated field
+        // names while preserving the stock mapping implementation.
+        decodeDisclosureType.addInstructions(0, "const/4 p0, 0x1")
 
         // Google caches static disclosure files in app-private storage. A device that has already
         // generated an audible file would otherwise keep reusing it even though the APK resource is

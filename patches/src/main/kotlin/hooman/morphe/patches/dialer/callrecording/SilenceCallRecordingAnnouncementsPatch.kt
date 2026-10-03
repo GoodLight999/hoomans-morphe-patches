@@ -1,11 +1,11 @@
 package hooman.morphe.patches.dialer.callrecording
 
+import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
-import hooman.morphe.util.returnEarly
 import org.w3c.dom.Element
 
 private val recordingAnnouncementResourceNames = setOf(
@@ -93,8 +93,13 @@ val silentCallRecordingPatch = bytecodePatch(
     dependsOn(silenceCallRecordingAnnouncementsResourcePatch)
 
     execute {
-        val canRecordClass = CallRecordingCountryGateFingerprint.originalClassDef
-        val mutableCanRecord = mutableClassDefBy(canRecordClass)
+        val canRecord = classDefByStrings(
+            "Call recording is disabled in the current country",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: CanRecord class not found or ambiguous. The call-recording gate changed.",
+            )
+        val mutableCanRecord = mutableClassDefBy(canRecord)
 
         val availability = mutableCanRecord.methods.filter { method ->
             method.returnType == "Z" && method.parameterTypes.isEmpty()
@@ -105,7 +110,12 @@ val silentCallRecordingPatch = bytecodePatch(
                     "${availability.size}. Re-derive.",
             )
         }
-
-        availability.single().returnEarly(true)
+        availability.single().addInstructions(
+            0,
+            """
+                const/4 v0, 0x1
+                return v0
+            """,
+        )
     }
 }

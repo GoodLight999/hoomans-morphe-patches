@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - feat/silent-call-recording
+      - custom
   pull_request:
     branches:
       - feat/silent-call-recording
+      - custom
 
 jobs:
   build:
@@ -28,6 +30,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew :patches:buildAndroid --no-daemon
+
+      - name: Upload patch bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: hoomans-morphe-patches
+          path: |
+            patches/build/libs/*.mpp
+            !patches/build/libs/*-sources.mpp
+            !patches/build/libs/*-javadoc.mpp
 
       - name: Download Morphe Desktop
         run: curl -fL --retry 3 https://github.com/MorpheApp/morphe-desktop/releases/download/v1.17.0/morphe-desktop-1.17.0-all.jar -o morphe-desktop.jar

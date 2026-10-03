@@ -66,7 +66,7 @@ jobs:
       - name: Inspect original recording paths
         run: |
           mkdir -p static-analysis
-          jadx/bin/jadx --no-res -d jadx-original google-phone-161.apk >/dev/null 2>&1
+          jadx/bin/jadx --no-res -d jadx-original google-phone-161.apk > static-analysis/jadx-original.log 2>&1 || true
           {
             echo "=== Recording announcement resource references ==="
             grep -R -n -C 10 -E 'call_recording_(starting|ending|speaker_starting|speaker_ending)_voice' jadx-original/sources || true
@@ -87,7 +87,7 @@ jobs:
 
       - name: Verify patched announcement resources
         run: |
-          jadx/bin/jadx --no-src -d jadx-patched google-phone-161-patched.apk >/dev/null 2>&1
+          jadx/bin/jadx --no-src -d jadx-patched google-phone-161-patched.apk > static-analysis/jadx-patched.log 2>&1 || true
           python3 - <<'PY'
           from pathlib import Path
           import xml.etree.ElementTree as ET

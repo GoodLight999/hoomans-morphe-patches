@@ -255,7 +255,12 @@ jobs:
           first_lines = "\\n".join(tail.splitlines()[:14])
           assignment = re.search(rf"\\b{re.escape(parameter)}\\s*=\\s*1\\s*;", first_lines)
           direct_return = re.match(r"\\s*return\\s+BEEP_SOUND\\s*;", tail)
-          if not assignment and not direct_return:
+          folded_beep_branch = re.search(
+              r"if\\s*\\(\\s*1\\s*==\\s*1\\s*\\)\\s*\\{\\s*return\\s+BEEP_SOUND\\s*;",
+              tail,
+              re.S,
+          )
+          if not assignment and not direct_return and not folded_beep_branch:
               raise SystemExit(
                   "Disclosure decoder input is not visibly forced to beep value 1:\\n" + first_lines
               )

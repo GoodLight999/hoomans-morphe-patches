@@ -50,5 +50,5 @@ jobs:
         run: |
           PATCH_BUNDLE="$(find patches/build/libs -maxdepth 1 -type f -name '*.mpp' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
           test -n "$PATCH_BUNDLE"
-          java -jar morphe-desktop.jar patch -p "$PATCH_BUNDLE" --exclusive -e "Silence call recording announcements" --unsigned -o google-phone-161-patched.apk google-phone-161.apk
+          java -jar morphe-desktop.jar patch -p "$PATCH_BUNDLE" --exclusive -e "Silent call recording" --unsigned -o google-phone-161-patched.apk google-phone-161.apk
           unzip -t google-phone-161-patched.apk >/dev/null

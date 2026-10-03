@@ -7,6 +7,7 @@ import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
+import com.android.tools.smali.dexlib2.AccessFlags
 import com.android.tools.smali.dexlib2.Opcode
 import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
@@ -146,6 +147,39 @@ val silentCallRecordingPatch = bytecodePatch(
             """
                 const/4 v0, 0x1
                 return v0
+            """,
+        )
+
+        // Force all disclosure-type decoding to the beep implementation. The beep resource itself is
+        // replaced with valid silent OGG audio by the resource patch. This avoids depending on TTS
+        // engine behavior (including how a vendor TTS handles an empty utterance) and on locale-
+        // specific built-in voice files, while keeping the app's normal disclosure/playback state
+        // machine intact so recording still starts only after a normal COMPLETED result.
+        val disclosureType = classDefByStrings(
+            "CALL_RECORDING_DISCLOSURE_TYPE_UNSPECIFIED",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: call-recording disclosure type enum not found or ambiguous.",
+            )
+        val mutableDisclosureType = mutableClassDefBy(disclosureType)
+        val disclosureTypeName = disclosureType.type
+        val beepField = disclosureType.fields.singleOrNull { field ->
+            field.name == "BEEP_SOUND" && field.type == disclosureTypeName
+        } ?: throw PatchException(
+            "Google Phone: BEEP_SOUND disclosure enum field not found uniquely.",
+        )
+        val decodeDisclosureType = mutableDisclosureType.methods.singleOrNull { method ->
+            AccessFlags.STATIC.isSet(method.accessFlags) &&
+                method.returnType == disclosureTypeName &&
+                method.parameterTypes == listOf("I")
+        } ?: throw PatchException(
+            "Google Phone: disclosure type decoder (int -> enum) not found uniquely.",
+        )
+        decodeDisclosureType.addInstructions(
+            0,
+            """
+                sget-object v0, $disclosureTypeName->${beepField.name}:$disclosureTypeName
+                return-object v0
             """,
         )
 

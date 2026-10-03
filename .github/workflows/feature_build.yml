@@ -102,7 +102,7 @@ jobs:
             cp "$src" "static-analysis/disclosure-selectors/$(basename "$src")"
           done
 
-          for class in grn grj grp grr grs grw grt gro gru grl gib fii gte gkn fiy fiz fis fjo fjq fir fij fif; do
+          for class in grn grj grp grr grs grw grt gro gru grl gib fii gte gkn fiy fiz fis fjo fjq fir fij fif mom fja fjs adf; do
             src="jadx-original/sources/defpackage/$class.java"
             if [ -f "$src" ]; then
               cp "$src" "static-analysis/$class.java"

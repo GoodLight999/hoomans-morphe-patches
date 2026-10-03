@@ -43,6 +43,12 @@ jobs:
       - name: Download Morphe Desktop
         run: curl -fL --retry 3 https://github.com/MorpheApp/morphe-desktop/releases/download/v1.17.0/morphe-desktop-1.17.0-all.jar -o morphe-desktop.jar
 
+      - name: Download JADX
+        run: |
+          curl -fL --retry 3 https://github.com/skylot/jadx/releases/download/v1.5.6/jadx-1.5.6.zip -o jadx.zip
+          unzip -q jadx.zip -d jadx
+          chmod +x jadx/bin/jadx
+
       - name: Download Google Phone 161
         run: |
           curl -fL --retry 3 https://github.com/EFForg/apkeep/releases/download/1.0.0/apkeep-x86_64-unknown-linux-gnu -o apkeep
@@ -57,9 +63,74 @@ jobs:
           echo "APK_SHA256=$(sha256sum google-phone-161.apk | cut -d' ' -f1)"
           echo "APK_SIZE=$(stat -c%s google-phone-161.apk)"
 
+      - name: Inspect original recording paths
+        run: |
+          mkdir -p static-analysis
+          jadx/bin/jadx --no-res -d jadx-original google-phone-161.apk >/dev/null 2>&1
+          {
+            echo "=== Recording announcement resource references ==="
+            grep -R -n -C 10 -E 'call_recording_(starting|ending|speaker_starting|speaker_ending)_voice' jadx-original/sources || true
+            echo
+            echo "=== Prompt-file references ==="
+            grep -R -n -C 10 -E 'callrecordingprompt|starting_voice|ending_voice' jadx-original/sources || true
+            echo
+            echo "=== TTS/audio API references near Dialer code ==="
+            grep -R -n -C 6 -E 'synthesizeToFile|TextToSpeech|ToneGenerator|SoundPool' jadx-original/sources/com/google/android/dialer jadx-original/sources 2>/dev/null | head -n 6000 || true
+          } > static-analysis/original-recording-paths.txt
+
       - name: Apply silent recording patch
         run: |
           PATCH_BUNDLE="$(find patches/build/libs -maxdepth 1 -type f -name '*.mpp' ! -name '*sources*' ! -name '*javadoc*' | head -n 1)"
           test -n "$PATCH_BUNDLE"
           java -jar morphe-desktop.jar patch -p "$PATCH_BUNDLE" --exclusive -e "Silent call recording" --unsigned -o google-phone-161-patched.apk google-phone-161.apk
           unzip -t google-phone-161-patched.apk >/dev/null
+
+      - name: Verify patched announcement resources
+        run: |
+          jadx/bin/jadx --no-src -d jadx-patched google-phone-161-patched.apk >/dev/null 2>&1
+          python3 - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+
+          names = {
+              "call_recording_starting_voice",
+              "call_recording_ending_voice",
+              "call_recording_speaker_starting_voice",
+              "call_recording_speaker_ending_voice",
+          }
+          found = {}
+          for path in Path("jadx-patched/resources/res").glob("values*/*.xml"):
+              try:
+                  root = ET.parse(path).getroot()
+              except ET.ParseError:
+                  continue
+              for elem in root:
+                  name = elem.attrib.get("name")
+                  if name not in names:
+                      continue
+                  if elem.tag == "string" or (elem.tag == "item" and elem.attrib.get("type") == "string"):
+                      found.setdefault(name, []).append((str(path), elem.text or ""))
+
+          required = {"call_recording_starting_voice", "call_recording_ending_voice"}
+          missing = required - found.keys()
+          if missing:
+              raise SystemExit(f"Missing required patched resources: {sorted(missing)}")
+
+          nonempty = {
+              name: entries
+              for name, entries in found.items()
+              if any(value != "" for _, value in entries)
+          }
+          if nonempty:
+              raise SystemExit(f"Announcement resources are not empty: {nonempty}")
+
+          with open("static-analysis/patched-resource-verification.txt", "w", encoding="utf-8") as out:
+              for name in sorted(found):
+                  out.write(f"{name}: {len(found[name])} definitions; all empty\n")
+          PY
+
+      - name: Upload static analysis
+        uses: actions/upload-artifact@v4
+        with:
+          name: silent-recording-static-analysis
+          path: static-analysis/

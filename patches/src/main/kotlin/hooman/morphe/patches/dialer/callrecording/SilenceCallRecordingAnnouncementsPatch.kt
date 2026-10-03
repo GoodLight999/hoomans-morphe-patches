@@ -1,11 +1,17 @@
 package hooman.morphe.patches.dialer.callrecording
 
 import app.morphe.patcher.extensions.InstructionExtensions.addInstructions
+import app.morphe.patcher.extensions.InstructionExtensions.instructions
 import app.morphe.patcher.patch.AppTarget
 import app.morphe.patcher.patch.Compatibility
 import app.morphe.patcher.patch.PatchException
 import app.morphe.patcher.patch.bytecodePatch
 import app.morphe.patcher.patch.resourcePatch
+import com.android.tools.smali.dexlib2.Opcode
+import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
+import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
+import com.android.tools.smali.dexlib2.iface.reference.MethodReference
 import org.w3c.dom.Element
 
 private val recordingAnnouncementResourceNames = setOf(
@@ -142,5 +148,79 @@ val silentCallRecordingPatch = bytecodePatch(
                 return v0
             """,
         )
+
+        // Google caches static disclosure files in app-private storage. A device that has already
+        // generated an audible file would otherwise keep reusing it even though the APK resource is
+        // now silent. The shared coroutine method contains four File.exists() checks in order:
+        // cached audio file, audioinjector directory, cached call-recording prompt, prompt directory.
+        // Delete and invalidate the two cached-file checks so both providers regenerate from the
+        // patched silent resources on first use after every app process update.
+        val cacheHost = classDefByStrings(
+            "callrecordingprompt",
+            "audioinjector",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: disclosure cache host not found or ambiguous. " +
+                    "The call-recording audio cache implementation changed.",
+            )
+        val mutableCacheHost = mutableClassDefBy(cacheHost)
+        val cacheMethod = mutableCacheHost.methods.singleOrNull { method ->
+            method.instructions.count { instruction ->
+                val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
+                reference?.definingClass == "Ljava/io/File;" &&
+                    reference.name == "exists" &&
+                    reference.parameterTypes.isEmpty() &&
+                    reference.returnType == "Z"
+            } == 4
+        } ?: throw PatchException(
+            "Google Phone: expected one disclosure cache method with four File.exists() checks.",
+        )
+
+        val existsCallIndexes = cacheMethod.instructions.withIndex().mapNotNull { (index, instruction) ->
+            val reference = (instruction as? ReferenceInstruction)?.reference as? MethodReference
+            index.takeIf {
+                reference?.definingClass == "Ljava/io/File;" &&
+                    reference.name == "exists" &&
+                    reference.parameterTypes.isEmpty() &&
+                    reference.returnType == "Z"
+            }
+        }
+        if (existsCallIndexes.size != 4) {
+            throw PatchException(
+                "Google Phone: expected four File.exists() calls in disclosure cache method, found " +
+                    "${existsCallIndexes.size}.",
+            )
+        }
+
+        listOf(existsCallIndexes[0], existsCallIndexes[2]).sortedDescending().forEach { existsIndex ->
+            val invoke = cacheMethod.instructions[existsIndex] as? FiveRegisterInstruction
+                ?: throw PatchException(
+                    "Google Phone: disclosure cache File.exists() invoke shape changed.",
+                )
+            if (invoke.registerCount != 1) {
+                throw PatchException(
+                    "Google Phone: disclosure cache File.exists() argument count changed.",
+                )
+            }
+            val moveResult = cacheMethod.instructions.getOrNull(existsIndex + 1) as? OneRegisterInstruction
+                ?: throw PatchException(
+                    "Google Phone: disclosure cache File.exists() result shape changed.",
+                )
+            if (moveResult.opcode != Opcode.MOVE_RESULT) {
+                throw PatchException(
+                    "Google Phone: disclosure cache File.exists() is not followed by move-result.",
+                )
+            }
+
+            val fileRegister = invoke.registerC
+            val resultRegister = moveResult.registerA
+            cacheMethod.addInstructions(
+                existsIndex + 2,
+                """
+                    invoke-virtual {v$fileRegister}, Ljava/io/File;->delete()Z
+                    const/16 v$resultRegister, 0x0
+                """,
+            )
+        }
     }
 }

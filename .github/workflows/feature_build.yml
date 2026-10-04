@@ -271,6 +271,19 @@ jobs:
           )
           PY
 
+          BEEP_GATE="jadx-patched-src/sources/defpackage/grv.java"
+          if [ ! -f "$BEEP_GATE" ]; then
+            echo "Patched beep disclosure gate class grv.java not found" >&2
+            exit 1
+          fi
+          cp "$BEEP_GATE" static-analysis/patched-beep-disclosure-gate.java
+          if ! grep -q 'return true;' "$BEEP_GATE"; then
+            echo "Beep disclosure geofence is not forced enabled" >&2
+            sed -n '1,120p' "$BEEP_GATE" >&2
+            exit 1
+          fi
+          grep -n -C 8 'return true;' "$BEEP_GATE" > static-analysis/patched-beep-geofence-verification.txt
+
       - name: Upload static analysis
         if: always()
         uses: actions/upload-artifact@v4

@@ -333,6 +333,19 @@ jobs:
 
           for marker in \
             canRecordGateBypassed \
+            featurePresenceGateBypassed \
+            availabilityEmergencyCall \
+            availabilityEmergencyCallback \
+            availabilityConferenceChild \
+            availabilityMultipleCalls \
+            availabilityConferenceCall \
+            availabilityCdma \
+            availabilityVideoCall \
+            availabilityRttCall \
+            availabilityFiCall \
+            availabilityFeatureMissing \
+            availabilityCanRecordFalse \
+            availabilityTrue \
             disclosureForcedToBeep \
             beepGeofenceBypassed \
             cachedDisclosureInvalidated \
@@ -346,8 +359,20 @@ jobs:
             fi
           done
 
+          FEATURE_GATE="$(grep -Rl --include='*.java' 'CallRecordingEnabledFn' jadx-patched-src/sources 2>/dev/null | head -n 1)"
+          if [ -z "$FEATURE_GATE" ]; then
+            echo "Patched CallRecordingEnabledFn class not found" >&2
+            exit 1
+          fi
+          if ! grep -q 'featurePresenceGateBypassed' "$FEATURE_GATE" || ! grep -q 'return true;' "$FEATURE_GATE"; then
+            echo "CallRecordingEnabledFn is not forced enabled after patching" >&2
+            cat "$FEATURE_GATE" >&2
+            exit 1
+          fi
+          cp "$FEATURE_GATE" static-analysis/patched-call-recording-enabled-fn.java
+
           grep -R -n -C 5 --include='*.java' -E \
-            'startingAudioCompleted|startingAudioFailed|recordingEngineStartRequested' \
+            'availability(True|FeatureMissing|CanRecordFalse|Emergency|Multiple|Conference|Cdma|Video|Rtt|Fi)|startingAudioCompleted|startingAudioFailed|recordingEngineStartRequested' \
             jadx-patched-src/sources > static-analysis/patched-runtime-diagnostics.txt
 
       - name: Upload static analysis

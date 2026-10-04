@@ -100,6 +100,25 @@ jobs:
               jadx-original/sources 2>/dev/null | head -n 12000 || true
           } > static-analysis/call-recording-availability.txt
 
+          mkdir -p static-analysis/canrecord-consumers
+          while IFS= read -r src; do
+            [ -f "$src" ] || continue
+            cp "$src" "static-analysis/canrecord-consumers/$(basename "$src")"
+          done < <(
+            grep -Rl --include='*.java' -E '\\bgsm\\b|CanRecord' jadx-original/sources 2>/dev/null | sort -u
+          )
+
+          {
+            echo "=== Direct CanRecord consumers ==="
+            grep -R -n -C 35 --include='*.java' -E '\\bgsm\\b|CanRecord' \
+              jadx-original/sources 2>/dev/null | head -n 16000 || true
+            echo
+            echo "=== In-call button registration candidates ==="
+            grep -R -n -C 25 --include='*.java' -E \
+              'BOUNCE_CALL_RECORDING_BUTTON|CALL_RECORDING_BUTTON|call recording clicked|CallRecordingButtonController|jwn|ButtonController' \
+              jadx-original/sources 2>/dev/null | head -n 16000 || true
+          } > static-analysis/canrecord-consumers.txt
+
           {
             echo "=== Disclosure implementations / construction ==="
             grep -R -n -C 14 -E 'new (grr|gro|gru)\(' jadx-original/sources || true

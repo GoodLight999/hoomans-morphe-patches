@@ -13,7 +13,10 @@ import com.android.tools.smali.dexlib2.iface.instruction.FiveRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.OneRegisterInstruction
 import com.android.tools.smali.dexlib2.iface.instruction.ReferenceInstruction
 import com.android.tools.smali.dexlib2.iface.reference.MethodReference
+import com.android.tools.smali.dexlib2.iface.reference.StringReference
 import org.w3c.dom.Element
+
+private const val DEBUG_LOG = "Lapp/morphe/extension/dialer/callrecording/DebugLog;"
 
 private val recordingAnnouncementResourceNames = setOf(
     "call_recording_starting_voice",
@@ -119,10 +122,11 @@ private val silenceCallRecordingAnnouncementsResourcePatch = resourcePatch(
 @Suppress("unused")
 val silentCallRecordingPatch = bytecodePatch(
     name = "Silent call recording (GoodLight999)",
-    description = "Enables Google Phone's built-in call recorder and silences TTS, built-in voice, and beep start/stop announcements.",
+    description = "Enables Google Phone's built-in call recorder, silences all disclosure audio, and emits GL999CallRec diagnostics to logcat.",
 ) {
     compatibleWith(googlePhone161Compatibility)
     dependsOn(silenceCallRecordingAnnouncementsResourcePatch)
+    extendWith("extensions/dialer.mpe")
 
     execute {
         val canRecord = classDefByStrings(
@@ -145,6 +149,7 @@ val silentCallRecordingPatch = bytecodePatch(
         availability.single().addInstructions(
             0,
             """
+                invoke-static { }, $DEBUG_LOG->canRecordGateBypassed()V
                 const/4 v0, 0x1
                 return v0
             """,
@@ -174,7 +179,13 @@ val silentCallRecordingPatch = bytecodePatch(
         // The stock decoder maps integer value 1 to BEEP_SOUND. Force its input to 1 and then let
         // Google's own decoder return the enum constant, avoiding any dependency on obfuscated field
         // names while preserving the stock mapping implementation.
-        decodeDisclosureType.addInstructions(0, "const/4 p0, 0x1")
+        decodeDisclosureType.addInstructions(
+            0,
+            """
+                invoke-static { }, $DEBUG_LOG->disclosureForcedToBeep()V
+                const/4 p0, 0x1
+            """,
+        )
 
         // BEEP_SOUND has its own country/geofence gate independent from the call-recording country
         // gate. Because this patch deliberately routes all disclosures through the silent beep path,
@@ -194,6 +205,7 @@ val silentCallRecordingPatch = bytecodePatch(
         beepEnabledMethod.addInstructions(
             0,
             """
+                invoke-static { }, $DEBUG_LOG->beepGeofenceBypassed()V
                 const/4 v0, 0x1
                 return v0
             """,
@@ -266,10 +278,58 @@ val silentCallRecordingPatch = bytecodePatch(
             cacheMethod.addInstructions(
                 existsIndex + 2,
                 """
+                    invoke-static { }, $DEBUG_LOG->cachedDisclosureInvalidated()V
                     invoke-virtual {v$fileRegister}, Ljava/io/File;->delete()Z
                     const/16 v$resultRegister, 0x0
                 """,
             )
         }
+
+        // Add diagnostic markers around the stock CallRecordingButtonController callbacks. Google's
+        // own failure path already logs the real Throwable; our stable tag makes it easy to bracket
+        // the exact stage reached on a physical device.
+        val recordingCallbackClass = classDefByStrings(
+            "failed to play starting audio",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: recording callback class not found or ambiguous.",
+            )
+        val mutableRecordingCallbackClass = mutableClassDefBy(recordingCallbackClass)
+
+        fun addMarkerAtString(
+            marker: String,
+            debugMethod: String,
+        ) {
+            val method = mutableRecordingCallbackClass.methods.singleOrNull { candidate ->
+                candidate.instructions.any { instruction ->
+                    ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string == marker
+                }
+            } ?: throw PatchException(
+                "Google Phone: diagnostic marker '$marker' was not found uniquely.",
+            )
+            val index = method.instructions.indexOfFirst { instruction ->
+                ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string == marker
+            }
+            if (index < 0) {
+                throw PatchException("Google Phone: diagnostic marker '$marker' disappeared.")
+            }
+            method.addInstructions(
+                index,
+                "invoke-static { }, $DEBUG_LOG->$debugMethod()V",
+            )
+        }
+
+        addMarkerAtString(
+            "failed to play starting audio",
+            "startingAudioFailed",
+        )
+        addMarkerAtString(
+            "playing of starting audio finished.",
+            "startingAudioCompleted",
+        )
+        addMarkerAtString(
+            "CallRecordingButtonController_startCallRecording_startRecording",
+            "recordingEngineStartRequested",
+        )
     }
 }

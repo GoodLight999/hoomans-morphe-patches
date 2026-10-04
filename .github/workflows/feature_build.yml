@@ -83,6 +83,42 @@ jobs:
             grep -R -n -C 6 -E 'synthesizeToFile|TextToSpeech|ToneGenerator|SoundPool' jadx-original/sources/com/google/android/dialer jadx-original/sources 2>/dev/null | head -n 6000 || true
           } > static-analysis/original-recording-paths.txt
 
+          mkdir -p static-analysis/call-recording-availability
+          while IFS= read -r src; do
+            [ -f "$src" ] || continue
+            cp "$src" "static-analysis/call-recording-availability/$(basename "$src")"
+          done < <(
+            grep -Rl --include='*.java' -E \
+              'Call recording is disabled in the current country|G__enable_call_recording|enable_call_recording_system_feature|G__call_recording_force_enable_device_models|CallRecordingDataSourceStatus|CallRecordingButtonController|isCallRecordingCountry|call recording is not available|call recording.*available|recording.*button' \
+              jadx-original/sources 2>/dev/null | sort -u
+          )
+
+          {
+            echo "=== Call recording availability / UI gates ==="
+            grep -R -n -C 25 -E \
+              'Call recording is disabled in the current country|G__enable_call_recording|enable_call_recording_system_feature|G__call_recording_force_enable_device_models|CallRecordingDataSourceStatus|isCallRecordingCountry|call recording is not available|call recording.*available|recording.*button' \
+              jadx-original/sources 2>/dev/null | head -n 12000 || true
+          } > static-analysis/call-recording-availability.txt
+
+          mkdir -p static-analysis/canrecord-consumers
+          while IFS= read -r src; do
+            [ -f "$src" ] || continue
+            cp "$src" "static-analysis/canrecord-consumers/$(basename "$src")"
+          done < <(
+            grep -Rl --include='*.java' -E '\\bgsm\\b|CanRecord' jadx-original/sources 2>/dev/null | sort -u
+          )
+
+          {
+            echo "=== Direct CanRecord consumers ==="
+            grep -R -n -C 35 --include='*.java' -E '\\bgsm\\b|CanRecord' \
+              jadx-original/sources 2>/dev/null | head -n 16000 || true
+            echo
+            echo "=== In-call button registration candidates ==="
+            grep -R -n -C 25 --include='*.java' -E \
+              'BOUNCE_CALL_RECORDING_BUTTON|CALL_RECORDING_BUTTON|call recording clicked|CallRecordingButtonController|jwn|ButtonController' \
+              jadx-original/sources 2>/dev/null | head -n 16000 || true
+          } > static-analysis/canrecord-consumers.txt
+
           {
             echo "=== Disclosure implementations / construction ==="
             grep -R -n -C 14 -E 'new (grr|gro|gru)\(' jadx-original/sources || true
@@ -297,6 +333,19 @@ jobs:
 
           for marker in \
             canRecordGateBypassed \
+            featurePresenceGateBypassed \
+            availabilityEmergencyCall \
+            availabilityEmergencyCallback \
+            availabilityConferenceChild \
+            availabilityMultipleCalls \
+            availabilityConferenceCall \
+            availabilityCdma \
+            availabilityVideoCall \
+            availabilityRttCall \
+            availabilityFiCall \
+            availabilityFeatureMissing \
+            availabilityCanRecordFalse \
+            availabilityTrue \
             disclosureForcedToBeep \
             beepGeofenceBypassed \
             cachedDisclosureInvalidated \
@@ -310,8 +359,25 @@ jobs:
             fi
           done
 
+          mapfile -t FEATURE_GATES < <(
+            grep -Rl --include='*.java' 'com/android/dialer/callrecording/impl/CallRecordingEnabledFn' \
+              jadx-patched-src/sources 2>/dev/null
+          )
+          if [ "${#FEATURE_GATES[@]}" -ne 1 ]; then
+            echo "Expected exactly one patched CallRecordingEnabledFn class, found ${#FEATURE_GATES[@]}" >&2
+            printf '%s\n' "${FEATURE_GATES[@]}" >&2
+            exit 1
+          fi
+          FEATURE_GATE="${FEATURE_GATES[0]}"
+          if ! grep -q 'featurePresenceGateBypassed' "$FEATURE_GATE" || ! grep -q 'return true;' "$FEATURE_GATE"; then
+            echo "CallRecordingEnabledFn is not forced enabled after patching" >&2
+            cat "$FEATURE_GATE" >&2
+            exit 1
+          fi
+          cp "$FEATURE_GATE" static-analysis/patched-call-recording-enabled-fn.java
+
           grep -R -n -C 5 --include='*.java' -E \
-            'startingAudioCompleted|startingAudioFailed|recordingEngineStartRequested' \
+            'availability(True|FeatureMissing|CanRecordFalse|Emergency|Multiple|Conference|Cdma|Video|Rtt|Fi)|startingAudioCompleted|startingAudioFailed|recordingEngineStartRequested' \
             jadx-patched-src/sources > static-analysis/patched-runtime-diagnostics.txt
 
       - name: Upload static analysis

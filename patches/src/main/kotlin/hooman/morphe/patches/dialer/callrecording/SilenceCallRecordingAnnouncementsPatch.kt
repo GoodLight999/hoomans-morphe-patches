@@ -155,6 +155,73 @@ val silentCallRecordingPatch = bytecodePatch(
             """,
         )
 
+        // CallRecordingImpl itself is wrapped in Optional.empty() while CallRecordingEnabledFn
+        // reports false. On v161 that gate is separate from CanRecord and can suppress the record
+        // button before CanRecord is ever consulted. Keep the feature component present and log it.
+        val featureEnabledClass = classDefByStrings(
+            "com/android/dialer/callrecording/impl/CallRecordingEnabledFn",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: CallRecordingEnabledFn class not found or ambiguous.",
+            )
+        val mutableFeatureEnabledClass = mutableClassDefBy(featureEnabledClass)
+        val featureEnabledMethod = mutableFeatureEnabledClass.methods.singleOrNull { method ->
+            method.returnType == "Z" && method.parameterTypes.isEmpty()
+        } ?: throw PatchException(
+            "Google Phone: CallRecordingEnabledFn no-arg boolean method not found uniquely.",
+        )
+        featureEnabledMethod.addInstructions(
+            0,
+            """
+                invoke-static { }, $DEBUG_LOG->featurePresenceGateBypassed()V
+                const/4 v0, 0x1
+                return v0
+            """,
+        )
+
+        // Instrument the final per-call availability producer. This is what decides whether the
+        // in-call record button is available after the feature component and CanRecord gates.
+        val internalAvailabilityClass = classDefByStrings(
+            "recording not available: feature not present",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: CallRecordingInternalProducerModule class not found or ambiguous.",
+            )
+        val mutableInternalAvailabilityClass = mutableClassDefBy(internalAvailabilityClass)
+
+        fun addAvailabilityMarker(marker: String, debugMethod: String) {
+            val method = mutableInternalAvailabilityClass.methods.singleOrNull { candidate ->
+                candidate.instructions.any { instruction ->
+                    ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string == marker
+                }
+            } ?: throw PatchException(
+                "Google Phone: availability marker '$marker' was not found uniquely.",
+            )
+            val index = method.instructions.indexOfFirst { instruction ->
+                ((instruction as? ReferenceInstruction)?.reference as? StringReference)?.string == marker
+            }
+            if (index < 0) {
+                throw PatchException("Google Phone: availability marker '$marker' disappeared.")
+            }
+            method.addInstructions(
+                index,
+                "invoke-static { }, $DEBUG_LOG->$debugMethod()V",
+            )
+        }
+
+        addAvailabilityMarker("recording not available: emergency call", "availabilityEmergencyCall")
+        addAvailabilityMarker("recording not available: emergency callback", "availabilityEmergencyCallback")
+        addAvailabilityMarker("recording not available: child of conference call", "availabilityConferenceChild")
+        addAvailabilityMarker("recording not available: multiple calls in progress", "availabilityMultipleCalls")
+        addAvailabilityMarker("recording not available: conference call", "availabilityConferenceCall")
+        addAvailabilityMarker("recording not available: CDMA network", "availabilityCdma")
+        addAvailabilityMarker("recording not available: video call", "availabilityVideoCall")
+        addAvailabilityMarker("recording not available: RTT call", "availabilityRttCall")
+        addAvailabilityMarker("recording not available: Fi call", "availabilityFiCall")
+        addAvailabilityMarker("recording not available: feature not present", "availabilityFeatureMissing")
+        addAvailabilityMarker("recording not available: canRecord returned false", "availabilityCanRecordFalse")
+        addAvailabilityMarker("recording available", "availabilityTrue")
+
         // Force all disclosure-type decoding to the beep implementation. The beep resource itself is
         // replaced with valid silent OGG audio by the resource patch. This avoids depending on TTS
         // engine behavior (including how a vendor TTS handles an empty utterance) and on locale-

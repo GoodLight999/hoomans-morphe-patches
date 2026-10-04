@@ -359,7 +359,7 @@ jobs:
             fi
           done
 
-          FEATURE_GATE="$(grep -Rl --include='*.java' 'CallRecordingEnabledFn' jadx-patched-src/sources 2>/dev/null | head -n 1)"
+          FEATURE_GATE="$(grep -Rl --include='*.java' 'disabled by direct boot' jadx-patched-src/sources 2>/dev/null | head -n 1)"
           if [ -z "$FEATURE_GATE" ]; then
             echo "Patched CallRecordingEnabledFn class not found" >&2
             exit 1

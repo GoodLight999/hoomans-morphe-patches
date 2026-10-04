@@ -1,0 +1,125 @@
+name: Alpha Release
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  attestations: write
+
+jobs:
+  alpha:
+    if: github.event_name == 'workflow_dispatch' || !contains(github.event.head_commit.message, '[alpha-metadata]')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Determine alpha version
+        id: version
+        run: |
+          RAW_BASE="$(sed -n 's/^version[[:space:]]*=[[:space:]]*//p' gradle.properties | head -n 1)"
+          BASE="${RAW_BASE%%-*}"
+          if ! printf '%s' "$BASE" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Invalid base version in gradle.properties: $RAW_BASE" >&2
+            exit 1
+          fi
+
+          git fetch --tags --force
+          MAX=0
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            N="${tag##*.}"
+            if printf '%s' "$N" | grep -Eq '^[0-9]+$' && [ "$N" -gt "$MAX" ]; then
+              MAX="$N"
+            fi
+          done < <(git tag -l "v${BASE}-alpha.*")
+
+          NEXT=$((MAX + 1))
+          VERSION="${BASE}-alpha.${NEXT}"
+          TAG="v${VERSION}"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "Publishing $TAG"
+
+      - name: Build alpha bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: ./gradlew -Pversion="$VERSION" :patches:buildAndroid --no-daemon
+
+      - name: Publish alpha prerelease
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          # Remove the bad semantic-release bootstrap if it exists.
+          gh release delete v1.0.0-alpha.1 --cleanup-tag --yes || true
+
+          ASSET="$(find patches/build/libs -maxdepth 1 -type f -name "patches-${VERSION}.mpp" | head -n 1)"
+          test -n "$ASSET"
+
+          gh release create "$TAG" "$ASSET" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target dev \
+            --prerelease \
+            --title "$TAG" \
+            --notes "GoodLight999 alpha channel. Google Phone v161 Silent call recording includes the CallRecordingEnabledFn feature-presence fix and GL999CallRec availability diagnostics."
+
+      - name: Attest alpha bundle
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: 'Morphe Patches ${{ steps.version.outputs.tag }}'
+          subject-path: 'patches/build/libs/patches-${{ steps.version.outputs.version }}.mpp'
+
+      - name: Update Morphe remote metadata
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          version = os.environ["VERSION"]
+          repo = os.environ["GITHUB_REPOSITORY"]
+          data = {
+              "created_at": datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", ""),
+              "description": (
+                  "GoodLight999 alpha channel. Google Phone v161 Silent call recording: "
+                  "feature-presence fix plus GL999CallRec runtime diagnostics."
+              ),
+              "download_url": f"https://github.com/{repo}/releases/download/v{version}/patches-{version}.mpp",
+              "signature_download_url": "",
+              "version": version,
+          }
+          Path("patches-bundle.json").write_text(
+              json.dumps(data, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add patches-bundle.json
+          git commit -m "chore: publish alpha metadata [alpha-metadata] [skip ci]" || exit 0
+          git push origin HEAD:dev

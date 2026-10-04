@@ -102,7 +102,7 @@ jobs:
             cp "$src" "static-analysis/disclosure-selectors/$(basename "$src")"
           done
 
-          for class in grn grj grp grr grs grw grt gro gru grl gib fii gte gkn fiy fiz fis fjo fjq fir fij fif mom fja fjs adf; do
+          for class in grn grj grp grr grs grw grt gro gru grl grv gry gty gib fii gte gkn fiy fiz fis fjo fjq fir fij fif mom fja fjs adf; do
             src="jadx-original/sources/defpackage/$class.java"
             if [ -f "$src" ]; then
               cp "$src" "static-analysis/$class.java"
@@ -283,6 +283,36 @@ jobs:
             exit 1
           fi
           grep -n -C 8 'return true;' "$BEEP_GATE" > static-analysis/patched-beep-geofence-verification.txt
+
+          DEBUG_CLASS="jadx-patched-src/sources/app/morphe/extension/dialer/callrecording/DebugLog.java"
+          if [ ! -f "$DEBUG_CLASS" ]; then
+            echo "GoodLight999 runtime diagnostic class was not merged into the patched APK" >&2
+            exit 1
+          fi
+          if ! grep -q 'GL999CallRec' "$DEBUG_CLASS"; then
+            echo "GL999CallRec diagnostic tag missing from merged extension" >&2
+            exit 1
+          fi
+          cp "$DEBUG_CLASS" static-analysis/DebugLog.java
+
+          for marker in \
+            canRecordGateBypassed \
+            disclosureForcedToBeep \
+            beepGeofenceBypassed \
+            cachedDisclosureInvalidated \
+            startingAudioCompleted \
+            startingAudioFailed \
+            recordingEngineStartRequested
+          do
+            if ! grep -R -q --include='*.java' "$marker" jadx-patched-src/sources; then
+              echo "Runtime diagnostic call missing after patching: $marker" >&2
+              exit 1
+            fi
+          done
+
+          grep -R -n -C 5 --include='*.java' -E \
+            'startingAudioCompleted|startingAudioFailed|recordingEngineStartRequested' \
+            jadx-patched-src/sources > static-analysis/patched-runtime-diagnostics.txt
 
       - name: Upload static analysis
         if: always()

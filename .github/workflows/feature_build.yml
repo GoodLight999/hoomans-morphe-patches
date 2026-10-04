@@ -359,11 +359,16 @@ jobs:
             fi
           done
 
-          FEATURE_GATE="$(grep -Rl --include='*.java' 'disabled by direct boot' jadx-patched-src/sources 2>/dev/null | head -n 1)"
-          if [ -z "$FEATURE_GATE" ]; then
-            echo "Patched CallRecordingEnabledFn class not found" >&2
+          mapfile -t FEATURE_GATES < <(
+            grep -Rl --include='*.java' 'com/android/dialer/callrecording/impl/CallRecordingEnabledFn' \
+              jadx-patched-src/sources 2>/dev/null
+          )
+          if [ "${#FEATURE_GATES[@]}" -ne 1 ]; then
+            echo "Expected exactly one patched CallRecordingEnabledFn class, found ${#FEATURE_GATES[@]}" >&2
+            printf '%s\n' "${FEATURE_GATES[@]}" >&2
             exit 1
           fi
+          FEATURE_GATE="${FEATURE_GATES[0]}"
           if ! grep -q 'featurePresenceGateBypassed' "$FEATURE_GATE" || ! grep -q 'return true;' "$FEATURE_GATE"; then
             echo "CallRecordingEnabledFn is not forced enabled after patching" >&2
             cat "$FEATURE_GATE" >&2

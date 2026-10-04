@@ -10,7 +10,7 @@ Personal [Morphe](https://morphe.software) patches for paid Android apps.
 ## 🩹 Patches
 
 <!-- PATCHES_START EXPANDED -->
-> **[v1.53.0](https://github.com/arandomhooman/hoomans-morphe-patches/releases/tag/v1.53.0)**&nbsp;&nbsp;•&nbsp;&nbsp;`main`&nbsp;&nbsp;•&nbsp;&nbsp;64 patches total
+> **[v1.0.0-alpha.1](https://github.com/GoodLight999/hoomans-morphe-patches/releases/tag/v1.0.0-alpha.1)**&nbsp;&nbsp;•&nbsp;&nbsp;`dev`&nbsp;&nbsp;•&nbsp;&nbsp;65 patches total
 <details>
 <summary>📦 Twitch&nbsp;&nbsp;•&nbsp;&nbsp;7 patches</summary>
 <br>
@@ -102,7 +102,7 @@ Personal [Morphe](https://morphe.software) patches for paid Android apps.
 </details>
 
 <details>
-<summary>📦 Google Phone&nbsp;&nbsp;•&nbsp;&nbsp;1 patch</summary>
+<summary>📦 Google Phone&nbsp;&nbsp;•&nbsp;&nbsp;2 patches</summary>
 <br>
 
 **🎯 Supported versions:**
@@ -113,6 +113,7 @@ Personal [Morphe](https://morphe.software) patches for paid Android apps.
 | 💊&nbsp;Patch | 📜&nbsp;Description | ⚙️&nbsp;Options |
 |----------|----------------|-----------|
 | [Enable call recording](#enable-call-recording) | Turns on the built-in call recorder in regions where Google normally hides it. Recordings stay on your phone. Recording calls is regulated in many places, so check what is allowed where you live before using it. |  |
+| [Silent call recording (GoodLight999)](#silent-call-recording-goodlight999) | Enables Google Phone's built-in call recorder, silences all disclosure audio, and emits GL999CallRec diagnostics to logcat. |  |
 
 </details>
 

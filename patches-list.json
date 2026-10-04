@@ -1,6 +1,6 @@
 {
   "NOTE": "Do NOT manually edit this file. This file is automatically updated when semantic release (release.yml) runs. Manually editing this file can break your releases and break third party tools that use this file.",
-  "version": "1.53.0",
+  "version": "1.0.0-alpha.1",
   "patches": [
     {
       "name": "7TV and BTTV emotes",
@@ -684,6 +684,39 @@
           "targets": [
             {
               "version": "30.7.2",
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            }
+          ]
+        }
+      ],
+      "options": []
+    },
+    {
+      "name": "Silent call recording (GoodLight999)",
+      "description": "Enables Google Phone's built-in call recorder, silences all disclosure audio, and emits GL999CallRec diagnostics to logcat.",
+      "default": true,
+      "dependencies": [
+        "ResourcePatch"
+      ],
+      "compatiblePackages": [
+        {
+          "packageName": "com.google.android.dialer",
+          "name": "Google Phone",
+          "description": null,
+          "apkFileType": null,
+          "appIconColor": "#1A73E8",
+          "signatures": null,
+          "targets": [
+            {
+              "version": "161.0.726587057",
+              "isExperimental": false,
+              "minSdk": null,
+              "description": null
+            },
+            {
+              "version": "161.0.726587057-downloadable",
               "isExperimental": false,
               "minSdk": null,
               "description": null

@@ -44,7 +44,8 @@ jobs:
           echo "CallRecordingImpl obfuscated class: $CALL_RECORDING_IMPL_CLASS" | tee -a ui-analysis/summary.txt
 
           mkdir -p ui-analysis/consumers
-          grep -Rl --include='*.java' -E "\\b${GSM_CLASS}\\b|\\b${CALL_RECORDING_IMPL_CLASS}\\b|CallRecordingButtonController|BOUNCE_CALL_RECORDING_BUTTON|call recording clicked" jadx-original/sources |
+          cp jadx-original/sources/defpackage/grx.java ui-analysis/consumers/defpackage__grx.java
+          grep -Rl --include='*.java' -E "\\b${GSM_CLASS}\\b|\\b${CALL_RECORDING_IMPL_CLASS}\\b|\\bgrx\\b|CallRecordingButtonController|BOUNCE_CALL_RECORDING_BUTTON|call recording clicked" jadx-original/sources |
             sort -u |
             while read -r file; do
               cp "$file" "ui-analysis/consumers/$(echo "$file" | sed 's#jadx-original/sources/##; s#/#__#g')"

@@ -37,8 +37,8 @@ public final class DebugLog {
         info("05 starting disclosure audio COMPLETED");
     }
 
-    public static void startingAudioFailed() {
-        Log.e(TAG, "06 starting disclosure audio FAILED; inspect adjacent Google Phone throwable");
+    public static void startingAudioFailed(Throwable throwable) {
+        Log.e(TAG, "06 starting disclosure audio FAILED", throwable);
     }
 
     public static void recordingEngineStartRequested() {

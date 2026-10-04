@@ -38,8 +38,13 @@ jobs:
           GSM_CLASS="$(basename "$GSM_FILE" .java)"
           echo "CanRecord obfuscated class: $GSM_CLASS" | tee ui-analysis/summary.txt
 
+          CALL_RECORDING_IMPL_FILE="$(grep -Rl --include='*.java' 'com/android/dialer/callrecording/impl/CallRecordingImpl' jadx-original/sources | head -n 1)"
+          test -n "$CALL_RECORDING_IMPL_FILE"
+          CALL_RECORDING_IMPL_CLASS="$(basename "$CALL_RECORDING_IMPL_FILE" .java)"
+          echo "CallRecordingImpl obfuscated class: $CALL_RECORDING_IMPL_CLASS" | tee -a ui-analysis/summary.txt
+
           mkdir -p ui-analysis/consumers
-          grep -Rl --include='*.java' -E "\\b${GSM_CLASS}\\b|CallRecordingButtonController|BOUNCE_CALL_RECORDING_BUTTON|call recording clicked" jadx-original/sources |
+          grep -Rl --include='*.java' -E "\\b${GSM_CLASS}\\b|\\b${CALL_RECORDING_IMPL_CLASS}\\b|CallRecordingButtonController|BOUNCE_CALL_RECORDING_BUTTON|call recording clicked" jadx-original/sources |
             sort -u |
             while read -r file; do
               cp "$file" "ui-analysis/consumers/$(echo "$file" | sed 's#jadx-original/sources/##; s#/#__#g')"
@@ -48,6 +53,9 @@ jobs:
           {
             echo "=== Direct CanRecord consumers ==="
             grep -R -n -C 50 --include='*.java' -E "\\b${GSM_CLASS}\\b" jadx-original/sources || true
+            echo
+            echo "=== Direct CallRecordingImpl consumers ==="
+            grep -R -n -C 70 --include='*.java' -E "\\b${CALL_RECORDING_IMPL_CLASS}\\b" jadx-original/sources || true
             echo
             echo "=== Call recording button/controller references ==="
             grep -R -n -C 50 --include='*.java' -E 'CallRecordingButtonController|BOUNCE_CALL_RECORDING_BUTTON|CALL_RECORDING_BUTTON|call recording clicked|call_recording' jadx-original/sources || true

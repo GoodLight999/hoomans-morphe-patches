@@ -299,6 +299,7 @@ val silentCallRecordingPatch = bytecodePatch(
         fun addMarkerAtString(
             marker: String,
             debugMethod: String,
+            instructions: String = "invoke-static { }, $DEBUG_LOG->$debugMethod()V",
         ) {
             val method = mutableRecordingCallbackClass.methods.singleOrNull { candidate ->
                 candidate.instructions.any { instruction ->
@@ -313,15 +314,13 @@ val silentCallRecordingPatch = bytecodePatch(
             if (index < 0) {
                 throw PatchException("Google Phone: diagnostic marker '$marker' disappeared.")
             }
-            method.addInstructions(
-                index,
-                "invoke-static { }, $DEBUG_LOG->$debugMethod()V",
-            )
+            method.addInstructions(index, instructions)
         }
 
         addMarkerAtString(
             "failed to play starting audio",
             "startingAudioFailed",
+            "invoke-static { p1 }, $DEBUG_LOG->startingAudioFailed(Ljava/lang/Throwable;)V",
         )
         addMarkerAtString(
             "playing of starting audio finished.",

@@ -176,6 +176,29 @@ val silentCallRecordingPatch = bytecodePatch(
         // names while preserving the stock mapping implementation.
         decodeDisclosureType.addInstructions(0, "const/4 p0, 0x1")
 
+        // BEEP_SOUND has its own country/geofence gate independent from the call-recording country
+        // gate. Because this patch deliberately routes all disclosures through the silent beep path,
+        // force the beep implementation itself enabled as well.
+        val beepEnabledClass = classDefByStrings(
+            "disabled by geofence",
+        ).singleOrNull()
+            ?: throw PatchException(
+                "Google Phone: beep disclosure geofence class not found or ambiguous.",
+            )
+        val mutableBeepEnabledClass = mutableClassDefBy(beepEnabledClass)
+        val beepEnabledMethod = mutableBeepEnabledClass.methods.singleOrNull { method ->
+            method.returnType == "Z" && method.parameterTypes.isEmpty()
+        } ?: throw PatchException(
+            "Google Phone: beep disclosure enabled method not found uniquely.",
+        )
+        beepEnabledMethod.addInstructions(
+            0,
+            """
+                const/4 v0, 0x1
+                return v0
+            """,
+        )
+
         // Google caches static disclosure files in app-private storage. A device that has already
         // generated an audible file would otherwise keep reusing it even though the APK resource is
         // now silent. The shared coroutine method contains four File.exists() checks in order:

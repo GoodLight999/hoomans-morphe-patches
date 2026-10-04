@@ -244,7 +244,7 @@ jobs:
           path = Path(sys.argv[1])
           source = path.read_text(encoding="utf-8")
           match = re.search(
-              r"public static\\s+\\w+\\s+\\w+\\(int\\s+(\\w+)\\)\\s*\\{",
+              r"public static\s+\w+\s+\w+\(int\s+(\w+)\)\s*\{",
               source,
           )
           if not match:
@@ -253,10 +253,10 @@ jobs:
           parameter = match.group(1)
           tail = source[match.end():]
           first_lines = "\\n".join(tail.splitlines()[:14])
-          assignment = re.search(rf"\\b{re.escape(parameter)}\\s*=\\s*1\\s*;", first_lines)
-          direct_return = re.match(r"\\s*return\\s+BEEP_SOUND\\s*;", tail)
+          assignment = re.search(rf"\b{re.escape(parameter)}\s*=\s*1\s*;", first_lines)
+          direct_return = re.match(r"\s*return\s+BEEP_SOUND\s*;", tail)
           folded_beep_branch = re.search(
-              r"if\\s*\\(\\s*1\\s*==\\s*1\\s*\\)\\s*\\{\\s*return\\s+BEEP_SOUND\\s*;",
+              r"if\s*\(\s*1\s*==\s*1\s*\)\s*\{\s*return\s+BEEP_SOUND\s*;",
               tail,
               re.S,
           )

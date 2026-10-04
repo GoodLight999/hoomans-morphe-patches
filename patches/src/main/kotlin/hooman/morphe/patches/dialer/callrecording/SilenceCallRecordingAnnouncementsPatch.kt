@@ -118,7 +118,7 @@ private val silenceCallRecordingAnnouncementsResourcePatch = resourcePatch(
 
 @Suppress("unused")
 val silentCallRecordingPatch = bytecodePatch(
-    name = "Silent call recording",
+    name = "Silent call recording (GoodLight999)",
     description = "Enables Google Phone's built-in call recorder and silences TTS, built-in voice, and beep start/stop announcements.",
 ) {
     compatibleWith(googlePhone161Compatibility)

@@ -1,7 +1,7 @@
 {
-  "created_at": "2026-10-04T10:13:27",
-  "description": "GoodLight999 alpha channel. Google Phone v161 Silent call recording: feature-presence fix plus GL999CallRec runtime diagnostics.",
-  "download_url": "https://github.com/GoodLight999/hoomans-morphe-patches/releases/download/v1.53.1-alpha.2/patches-1.53.1-alpha.2.mpp",
+  "created_at": "",
+  "description": "Google Phone-only patch sources. No matching bundle has been published from this cleaned source tree.",
+  "download_url": "",
   "signature_download_url": "",
-  "version": "1.53.1-alpha.2"
+  "version": "1.53.1"
 }

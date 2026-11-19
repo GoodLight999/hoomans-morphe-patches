@@ -21,6 +21,8 @@ val enableCallRecordingPatch = bytecodePatch(
             targets = listOf(
                 AppTarget("161.0.726587057"),
                 AppTarget("161.0.726587057-downloadable"),
+                AppTarget("247.0.1016877637"),
+                AppTarget("247.0.1016877637-pixel"),
             ),
         ),
     )

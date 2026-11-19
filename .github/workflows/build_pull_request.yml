@@ -27,3 +27,11 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: ./gradlew :patches:buildAndroid --no-daemon
+
+      - name: Upload patch bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: google-phone-patches
+          path: |
+            patches/build/libs/*.mpp
+            !patches/build/libs/*-sources.mpp
